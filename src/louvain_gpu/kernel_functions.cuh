@@ -86,6 +86,13 @@ struct modularity_op
     }
 };
 
+struct same : std::binary_function<int, int, bool>
+{
+    bool operator()(int a, int b) const { return a == b; }
+};
+ 
+
+
 struct vertex_filter
 {
     thrust::device_ptr<int> is_retained;

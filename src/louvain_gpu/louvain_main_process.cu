@@ -574,7 +574,7 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 		thrust::fill(active_set.begin(), active_set.end(), 1);
 		// thrust::fill(is_moved.begin(), is_moved.end(), 0);
 		thrust::fill(Tot_update.begin(), Tot_update.end(), 0);
-		thrust::fill(In.begin(),In.end(),0);
+		// thrust::fill(In.begin(),In.end(),0);
 		// thrust::replace_if(In.begin(),In.end(),stencil.begin(),[] __device__ (int x) { return x  == 1; },0);
 
 		thrust::fill(community_size_update.begin(), community_size_update.end(), 0);
@@ -987,13 +987,17 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 		
 
 		
-		
+		double In_sum=thrust::reduce(thrust::device, In.begin(), In.end(),
+										(double)0.0, thrust::plus<double>());
+		MPI_Allreduce(&In_sum, &In_sum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+		thrust::fill(In.begin(),In.end(),0);
 		thrust::device_vector<double> sum(vertex_num, 0);
 		thrust::transform(thrust::device, In.begin(), In.end(), Tot.begin(),
 						  sum.begin(), modularity_op(constant));
-		cur_modularity = thrust::reduce(thrust::device, sum.begin(), sum.end(),
+		double cur_modularity = In_sum*constant+thrust::reduce(thrust::device, sum.begin(), sum.end(),
 										(double)0.0, thrust::plus<double>());
-		MPI_Allreduce(&cur_modularity, &cur_modularity, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+		
 
 		if(gpu_id==0)
 			printf("gpu-%d: Iteration:%d Q:%f\n",gpu_id, iteration, cur_modularity);
