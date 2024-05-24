@@ -512,6 +512,7 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 	thrust::copy(thrust::device, sorted_vertex_id.begin(), sorted_vertex_id.end(),
 				 sorted_vertex_id_const.begin());
 
+
 	double prev_modularity = -1;
 	double cur_modularity = -1;
 	int thread_num_to_alloc;
@@ -562,7 +563,7 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 		thrust::fill(active_set.begin(), active_set.end(), 1);
 		// thrust::fill(is_moved.begin(), is_moved.end(), 0);
 		thrust::fill(Tot_update.begin(), Tot_update.end(), 0);
-		// thrust::fill(In.begin(),In.end(),0);
+		thrust::fill(In.begin(),In.end(),0);
 		// thrust::replace_if(In.begin(),In.end(),stencil.begin(),[] __device__ (int x) { return x  == 1; },0);
 
 		thrust::fill(community_size_update.begin(), community_size_update.end(), 0);
@@ -932,11 +933,16 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 		// filter_vertex_into_new_vector(sorted_vertex_id_all, compute_In_sorted_vertex_id, moved_filter, deg_num_tbl_const, h_deg_num_tbl, degree_type_size);
 
 		efficient_weight_updating(d_weights, d_neighbors, d_degrees,
-								  cur_community, sorted_vertex_id_all,
+								  cur_community, sorted_vertex_id_const,
 								  active_set, In, Tot, K, Self, vertex_num,
-								  deg_num_tbl_const, (int)min_Tot, constant);
+								  deg_num_per_gpu, (int)min_Tot, constant);
+
+		ncclAllReduce((const void*)thrust::raw_pointer_cast(In.data()), (void*)thrust::raw_pointer_cast(In.data()), vertex_num, ncclInt, /*ncclMax*/ ncclSum, comm,s);
+		cudaStreamSynchronize(s);
 		end2 = get_time();
 		updatetime += end2 - start2;
+
+		
 		
 		thrust::device_vector<double> sum(vertex_num, 0);
 		thrust::transform(thrust::device, In.begin(), In.end(), Tot.begin(),
