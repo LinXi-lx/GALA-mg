@@ -1,0 +1,7 @@
+#define BLOCK_NUM 1024
+#define THREAD_NUM_PER_BLOCK 128
+#define MAX_THREAD_PER_BLOCK 1024
+#define WARP_SIZE 32
+
+#define SHARE_MEM_SIZE 4001
+#define GPU_NUM 2
