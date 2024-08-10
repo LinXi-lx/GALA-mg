@@ -804,12 +804,26 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 		double start_comm, end_comm;
 		start_comm = get_time();
 
+		// thrust::device_vector<int> id_buffer(vertex_num, 0);
+		// thrust::sequence(sorted_vertex_id_all.begin(), sorted_vertex_id_all.end());
+		// thrust::device_vector<int> weightbuffer(vertex_num, 0);
+		// thrust::device_vector<int>::iterator buffer_end = thrust::copy_if(target_com_weights.begin(), target_com_weights.end(), 
+		//                                                                  sendbuff.begin(), [] __device__ (int x) { return x  > 0; });
+		// buffer_end = thrust::copy_if(sorted_vertex_id_all.begin(), sorted_vertex_id_all.end(), target_com_weights.begin(),
+		//                             id_buffer.begin(), [] __device__ (int x) { return x  > 0; });
 		
-
+		// int id_size = thrust::distance(weightbuffer.begin(), buffer_end);//非0个数
+		// int id_max_size;
+		// MPI_Allreduce(&id_size, &id_max_size, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+		
+		// thrust::device_vector<int> recvbuffer(id_max_size*gpu_num);
+		// ncclAllGather((const void*)thrust::raw_pointer_cast(id_buffer.data()), (void*)thrust::raw_pointer_cast(recvbuffer.data()), id_max_size, ncclInt, comm,s);
+		// ncclAllGather((const void*)thrust::raw_pointer_cast(id_buffer.data()), (void*)thrust::raw_pointer_cast(recvbuffer.data()), id_max_size, ncclInt, comm,s)
 		
 		ncclAllReduce((const void*)thrust::raw_pointer_cast(cur_community.data()), (void*)thrust::raw_pointer_cast(cur_community.data()), vertex_num, ncclInt, /*ncclMax*/ ncclSum, comm,s);
 		ncclAllReduce((const void*)thrust::raw_pointer_cast(active_set.data()), (void*)thrust::raw_pointer_cast(active_set.data()), vertex_num, ncclUint8, /*ncclMax*/ ncclSum, comm,s);//标记邻居动的情况
-		ncclAllReduce((const void*)thrust::raw_pointer_cast(target_com_weights.data()), (void*)thrust::raw_pointer_cast(target_com_weights.data()), vertex_num, ncclInt, /*ncclMax*/ ncclSum, comm,s);//邻居移动对点												产生的delta
+		// if(iteration<10)
+		// 	ncclAllReduce((const void*)thrust::raw_pointer_cast(target_com_weights.data()), (void*)thrust::raw_pointer_cast(target_com_weights.data()), vertex_num, ncclInt, /*ncclMax*/ ncclSum, comm,s);//邻居移动对点												产生的delta
 
 		
 		cudaStreamSynchronize(s);
@@ -842,7 +856,7 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 			thrust::raw_pointer_cast(Tot.data()),
 			thrust::raw_pointer_cast(Self.data()),
 			thrust::raw_pointer_cast(K.data()),thrust::raw_pointer_cast(stencil.data()), (int)min_Tot, constant,
-			vertex_num);
+			vertex_num, iteration);
 		cudaDeviceSynchronize();
 		// double end_test=get_time();
 		// test_time+=end_test-start_test;
