@@ -431,81 +431,7 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 	thrust::device_vector<int> stencil(vertex_num,1);
 	thrust::device_vector<int> temp(data_num_per_gpu,0);
 	thrust::scatter(temp.begin(),temp.end(),sorted_vertex_id.begin(),stencil.begin());//1:other gpu
-	// auto filter_end = thrust::copy_if(begin_zip, end_zip, sorted_vertex_id.begin(), degree_filter_in_range_gpu_id(1,3,gpu_id,gpu_num));
-	// deg_num_4_per_gpu=thrust::distance(sorted_vertex_id.begin(), filter_end);
-	
-	// filter_end = thrust::copy_if(begin_zip, end_zip, sorted_vertex_id.begin()+deg_num_4_per_gpu, degree_filter_in_range_gpu_id(4,7,gpu_id,gpu_num));
-	// deg_num_8_per_gpu=thrust::distance(sorted_vertex_id.begin()+deg_num_4_per_gpu, filter_end);
-	
-	// filter_end = thrust::copy_if(begin_zip, end_zip, sorted_vertex_id.begin()+deg_num_4_per_gpu+deg_num_8_per_gpu, degree_filter_in_range_gpu_id(8,15,gpu_id,gpu_num));
-	// deg_num_16_per_gpu=thrust::distance(sorted_vertex_id.begin()+deg_num_4_per_gpu+deg_num_8_per_gpu, filter_end);
 
-	// filter_end = thrust::copy_if(begin_zip, end_zip, sorted_vertex_id.begin()+deg_num_4_per_gpu+deg_num_8_per_gpu+deg_num_16_per_gpu, degree_filter_in_range_gpu_id(16,31,gpu_id,gpu_num));
-	// deg_num_32_per_gpu=thrust::distance(sorted_vertex_id.begin()+deg_num_4_per_gpu+deg_num_8_per_gpu+deg_num_16_per_gpu, filter_end);
-
-	// filter_end = thrust::copy_if(begin_zip, end_zip, sorted_vertex_id.begin()+deg_num_4_per_gpu+deg_num_8_per_gpu+deg_num_16_per_gpu+deg_num_32_per_gpu, degree_filter_in_range_gpu_id(32,128,gpu_id,gpu_num));
-	// deg_num_128_per_gpu=thrust::distance(sorted_vertex_id.begin()+deg_num_4_per_gpu+deg_num_8_per_gpu+deg_num_16_per_gpu+deg_num_32_per_gpu, filter_end);
-
-	// filter_end = thrust::copy_if(begin_zip, end_zip, sorted_vertex_id.begin()+deg_num_4_per_gpu+deg_num_8_per_gpu+deg_num_16_per_gpu+deg_num_32_per_gpu+deg_num_128_per_gpu, degree_filter_in_range_gpu_id(129,1024,gpu_id,gpu_num));
-	// deg_num_1024_per_gpu=thrust::distance(sorted_vertex_id.begin()+deg_num_4_per_gpu+deg_num_8_per_gpu+deg_num_16_per_gpu+deg_num_32_per_gpu+deg_num_128_per_gpu, filter_end);
-
-	// filter_end = thrust::copy_if(begin_zip, end_zip, sorted_vertex_id.begin()+deg_num_4_per_gpu+deg_num_8_per_gpu+deg_num_16_per_gpu+deg_num_32_per_gpu+deg_num_128_per_gpu+deg_num_1024_per_gpu, degree_filter_in_range_gpu_id(1025, global_limit,gpu_id,gpu_num));
-	// deg_num_limit_per_gpu=thrust::distance(sorted_vertex_id.begin()+deg_num_4_per_gpu+deg_num_8_per_gpu+deg_num_16_per_gpu+deg_num_32_per_gpu+deg_num_128_per_gpu+deg_num_1024_per_gpu, filter_end);
-
-	// filter_end = thrust::copy_if(begin_zip, end_zip, sorted_vertex_id.begin()+deg_num_4_per_gpu+deg_num_8_per_gpu+deg_num_16_per_gpu+deg_num_32_per_gpu+deg_num_128_per_gpu+deg_num_1024_per_gpu+deg_num_limit_per_gpu, degree_filter_in_range_gpu_id(global_limit + 1, vertex_num,gpu_id,gpu_num));
-	// deg_num_greater_than_limit_per_gpu=thrust::distance(sorted_vertex_id.begin()+deg_num_4_per_gpu+deg_num_8_per_gpu+deg_num_16_per_gpu+deg_num_32_per_gpu+deg_num_128_per_gpu+deg_num_1024_per_gpu+deg_num_limit_per_gpu, filter_end);
-
-
-	
-	// thrust::copy_if(original_vertex_id.begin(), original_vertex_id.end(),
-	// 				degree_of_vertex.begin(), sorted_vertex_id.begin(),
-	// 				filter_for_4);
-	// thrust::copy_if(original_vertex_id.begin(), original_vertex_id.end(),
-	// 				degree_of_vertex.begin(), sorted_vertex_id.begin() + deg_num_4,
-	// 				filter_for_8);
-	// thrust::copy_if(original_vertex_id.begin(), original_vertex_id.end(),
-	// 				degree_of_vertex.begin(),
-	// 				sorted_vertex_id.begin() + deg_num_4 + deg_num_8, filter_for_16);
-	// thrust::copy_if(original_vertex_id.begin(), original_vertex_id.end(),
-	// 				degree_of_vertex.begin(),
-	// 				sorted_vertex_id.begin() + deg_num_4 + deg_num_8 + deg_num_16,
-	// 				filter_for_32);
-	// thrust::copy_if(original_vertex_id.begin(), original_vertex_id.end(),
-	// 				degree_of_vertex.begin(),
-	// 				sorted_vertex_id.begin() + deg_num_4 + deg_num_8 + deg_num_16 +
-	// 					deg_num_32,
-	// 				filter_for_128);
-	// thrust::copy_if(original_vertex_id.begin(), original_vertex_id.end(),
-	// 				degree_of_vertex.begin(),
-	// 				sorted_vertex_id.begin() + deg_num_4 + deg_num_8 + deg_num_16 +
-	// 					deg_num_32 + deg_num_128,
-	// 				filter_for_1024);
-	// thrust::copy_if(original_vertex_id.begin(), original_vertex_id.end(),
-	// 				degree_of_vertex.begin(),
-	// 				sorted_vertex_id.begin() + deg_num_4 + deg_num_8 + deg_num_16 +
-	// 					deg_num_32 + deg_num_128 + deg_num_1024,
-	// 				filter_for_limit);
-	// thrust::copy_if(original_vertex_id.begin(), original_vertex_id.end(),
-	// 				degree_of_vertex.begin(),
-	// 				sorted_vertex_id.begin() + deg_num_4 + deg_num_8 + deg_num_16 +
-	// 					deg_num_32 + deg_num_128 + deg_num_1024 +
-	// 					deg_num_limit,
-	// 				filter_for_global);
-
-	// original_vertex_id.resize(sorted_vertex_id.size(), 0);
-	// thrust::gather(
-	// 	thrust::device, sorted_vertex_id.begin(), sorted_vertex_id.end(),
-	// 	degree_of_vertex.begin(),
-	// 	original_vertex_id
-	// 		.begin()); // original_vertex_id[i]=degree_of_vertex[sorted[i]],{4,4,4,8,8,8...}
-	// sort large vertex by degree
-	// thrust::sort_by_key(
-	// 	original_vertex_id.begin() + deg_num_4 + deg_num_8 + deg_num_16 + deg_num_32 +
-	// 		deg_num_128 + deg_num_1024 + deg_num_limit,
-	// 	original_vertex_id.end(),
-	// 	sorted_vertex_id.begin() + deg_num_4 + deg_num_8 + deg_num_16 + deg_num_32 +
-	// 		deg_num_128 + deg_num_1024 + deg_num_limit,
-	// 	thrust::greater<unsigned int>());
 
 
 	
@@ -598,7 +524,7 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 
 		thrust::replace_if(cur_community.begin(),cur_community.end(),stencil.begin(),[] __device__ (int x) { return x  == 1; },0);
 		// thrust::fill(cur_community.begin(), cur_community.end(), 0);
-		thrust::replace_if(next_In.begin(),next_In.end(),stencil.begin(),[] __device__ (int x) { return x  == 1; },0);
+		// thrust::replace_if(next_In.begin(),next_In.end(),stencil.begin(),[] __device__ (int x) { return x  == 1; },0);
 		// thrust::fill(next_In.begin(), next_In.end(), 0);
 		
 
@@ -886,14 +812,9 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 
 		
 		ncclAllReduce((const void*)thrust::raw_pointer_cast(cur_community.data()), (void*)thrust::raw_pointer_cast(cur_community.data()), vertex_num, ncclInt, /*ncclMax*/ ncclSum, comm,s);
-		// ncclAllReduce((const void*)thrust::raw_pointer_cast(Tot_update.data()), (void*)thrust::raw_pointer_cast(Tot_update.data()), vertex_num, ncclInt, /*ncclMax*/ ncclSum, comm,s);//Dv(C)
-		// ncclAllReduce((const void*)thrust::raw_pointer_cast(community_size_update.data()), (void*)thrust::raw_pointer_cast(community_size_update.data()), vertex_num, ncclInt, /*ncclMax*/ ncclSum, comm,s);//vertex num
-		// ncclAllReduce((const void*)thrust::raw_pointer_cast(next_In.data()), (void*)thrust::raw_pointer_cast(next_In.data()), vertex_num, ncclInt, /*ncclMax*/ ncclSum, comm,s);//这一轮待保存的Dc(C)
 		ncclAllReduce((const void*)thrust::raw_pointer_cast(active_set.data()), (void*)thrust::raw_pointer_cast(active_set.data()), vertex_num, ncclUint8, /*ncclMax*/ ncclSum, comm,s);//标记邻居动的情况
 		ncclAllReduce((const void*)thrust::raw_pointer_cast(target_com_weights.data()), (void*)thrust::raw_pointer_cast(target_com_weights.data()), vertex_num, ncclInt, /*ncclMax*/ ncclSum, comm,s);//邻居移动对点												产生的delta
-		// ncclAllReduce((const void*)thrust::raw_pointer_cast(is_moved.data()), (void*)thrust::raw_pointer_cast(is_moved.data()), vertex_num, ncclInt, /*ncclMax*/ ncclSum, comm,s);//标记点自己是否移动
-		// ncclAllReduce((const void*)thrust::raw_pointer_cast(In.data()), (void*)thrust::raw_pointer_cast(In.data()), vertex_num, ncclInt, /*ncclMax*/ ncclSum, comm,s);//上一轮结束后，点到自己社区的权重和Dc(C)
-		
+
 		
 		cudaStreamSynchronize(s);
 	
@@ -903,11 +824,7 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 		
 		
 		// compute In
-		// thrust::transform(thrust::device, Tot.begin(), Tot.end(),
-		// 				  Tot_update.begin(), Tot.begin(), thrust::plus<int>());
-		// thrust::transform(thrust::device, community_size.begin(), community_size.end(),
-		// 				  community_size_update.begin(), community_size.begin(),
-		// 				  thrust::plus<int>());
+
 		thrust::fill(Tot.begin(), Tot.end(),0);
 		thrust::fill(community_size.begin(), community_size.end(),0);
 		block_num = (vertex_num + 1024 - 1) / 1024;	
@@ -928,7 +845,7 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 			thrust::raw_pointer_cast(target_com_weights.data()),
 			thrust::raw_pointer_cast(Tot.data()),
 			thrust::raw_pointer_cast(Self.data()),
-			thrust::raw_pointer_cast(K.data()), (int)min_Tot, constant,
+			thrust::raw_pointer_cast(K.data()),thrust::raw_pointer_cast(stencil.data()), (int)min_Tot, constant,
 			vertex_num);
 		cudaDeviceSynchronize();
 		// double end_test=get_time();
@@ -951,7 +868,7 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 		// 	cout<<In[i]<<" ";
 		// }cout<<endl;
 
-		thrust::replace_if(In.begin(),In.end(),stencil.begin(),[] __device__ (int x) { return x  == 1; },0);
+		// thrust::replace_if(In.begin(),In.end(),stencil.begin(),[] __device__ (int x) { return x  == 1; },0);
 		double In_sum=thrust::reduce(thrust::device, In.begin(), In.end(),
 										(double)0.0, thrust::plus<double>());
 		MPI_Allreduce(&In_sum, &In_sum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);

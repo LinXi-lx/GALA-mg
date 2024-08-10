@@ -1675,7 +1675,7 @@ int print_time(timeval start, timeval end, int isPrint)
 }
 
 __global__ void save_next_In(int *In, int *next_In, int *cur_community, uint8_t *active_set, int *is_moved, int *target_com_weights,
-                             int *Tot, int *Self, int *K, edge_t min_Tot, double constant, int vertex_num)
+                             int *Tot, int *Self, int *K,int *stencil, edge_t min_Tot, double constant, int vertex_num)
 {
     int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
     if (thread_id < vertex_num)
@@ -1743,6 +1743,9 @@ __global__ void save_next_In(int *In, int *next_In, int *cur_community, uint8_t 
         else if (is_neighbors_moved >= 1 && is_self_moved >= 1)
         {
             is_moved[vertex] = 1;
+        }
+        if(stencil[vertex] == 1){
+            In[vertex] = 0;
         }
     }
 }

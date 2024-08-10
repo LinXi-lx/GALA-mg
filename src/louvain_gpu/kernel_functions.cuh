@@ -257,6 +257,6 @@ __global__ void build_by_block(int *sorted_community_id, weight_t *weights, vert
 int print_time(timeval start, timeval end, int isPrint);
 
 __global__ void save_next_In(int *In, int *next_In, int *cur_community, uint8_t *active_set, int *is_moved, int *target_com_weights,
-                             int *Tot, int *Self, int *K, edge_t min_Tot, double constant, int vertex_num);
+                             int *Tot, int *Self, int *K,int *stencil, edge_t min_Tot, double constant, int vertex_num);
 
 __global__ void get_Tot_and_comm_size(int *Tot, int *community_size, int *community, int *K, int vertex_num);
