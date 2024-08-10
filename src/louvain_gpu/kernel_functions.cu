@@ -438,7 +438,11 @@ __device__ void build_and_select_in_warp(int vertex, const weight_t *__restrict_
         {
             int v = neighbors[start_neighbor + thd];
             int wt = weights[start_neighbor + thd];
-            atomicOrUint8(&active_set[v], 1); //
+            int uint32_index = v / 4;  // 每4个uint8_t组成一个uint32_t
+            int byte_offset = (v % 4) * 8; // 计算在uint32_t中的位移
+            uint32_t* array32 = reinterpret_cast<uint32_t*>(active_set);
+            atomicOr(&array32[uint32_index], 1 << byte_offset);
+            // atomicOrUint8(&active_set[v], 1); //
             if (prev_community[v] == cur_com)
             {
                 atomicSub(&target_com_weights[v], wt);
@@ -589,7 +593,11 @@ __device__ void build_and_select(int vertex, const weight_t *__restrict__ weight
             int v = neighbors[start_neighbor + thd];
             int wt = weights[start_neighbor + thd];
             // if(prev_community[v]!=best_com){
-            atomicOrUint8(&active_set[v], 1); //
+            int uint32_index = v / 4;  
+            int byte_offset = (v % 4) * 8; 
+            uint32_t* array32 = reinterpret_cast<uint32_t*>(active_set);
+            atomicOr(&array32[uint32_index], 1 << byte_offset);
+            
             if (prev_community[v] == cur_com)
             {
                 atomicSub(&target_com_weights[v], wt);
@@ -810,7 +818,10 @@ __device__ void build_and_select_blk(int vertex, const weight_t *__restrict__ we
         {
             int v = neighbors[start_neighbor + thd];
             int wt = weights[start_neighbor + thd];
-            atomicOrUint8(&active_set[v], 1); //
+            int uint32_index = v / 4;  
+            int byte_offset = (v % 4) * 8; 
+            uint32_t* array32 = reinterpret_cast<uint32_t*>(active_set);
+            atomicOr(&array32[uint32_index], 1 << byte_offset);
             if (prev_community[v] == cur_com)
             {
                 atomicSub(&target_com_weights[v], wt);

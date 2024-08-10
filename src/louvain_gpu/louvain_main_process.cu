@@ -515,17 +515,11 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 		
 		thrust::fill(active_set.begin(), active_set.end(), 0);
 		thrust::fill(is_moved.begin(), is_moved.end(), 0);
-		// thrust::fill(Tot_update.begin(), Tot_update.end(), 0);
-		// thrust::fill(In.begin(),In.end(),0);
-		// thrust::replace_if(In.begin(),In.end(),stencil.begin(),[] __device__ (int x) { return x  == 1; },0);
 
-		// thrust::fill(community_size_update.begin(), community_size_update.end(), 0);
 		thrust::fill(target_com_weights.begin(), target_com_weights.end(), 0);
 
 		thrust::replace_if(cur_community.begin(),cur_community.end(),stencil.begin(),[] __device__ (int x) { return x  == 1; },0);
-		// thrust::fill(cur_community.begin(), cur_community.end(), 0);
-		// thrust::replace_if(next_In.begin(),next_In.end(),stencil.begin(),[] __device__ (int x) { return x  == 1; },0);
-		// thrust::fill(next_In.begin(), next_In.end(), 0);
+
 		
 
 		double start1, end1;
@@ -809,6 +803,8 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 
 		double start_comm, end_comm;
 		start_comm = get_time();
+
+		
 
 		
 		ncclAllReduce((const void*)thrust::raw_pointer_cast(cur_community.data()), (void*)thrust::raw_pointer_cast(cur_community.data()), vertex_num, ncclInt, /*ncclMax*/ ncclSum, comm,s);
