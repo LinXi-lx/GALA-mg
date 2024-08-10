@@ -92,12 +92,12 @@ struct same : std::binary_function<int, int, bool>
 };
  
 
-
+template<typename T>
 struct vertex_filter
 {
-    thrust::device_ptr<int> is_retained;
-    int flag;
-    __host__ __device__ vertex_filter(thrust::device_ptr<int> q, int f)
+    thrust::device_ptr<T> is_retained;
+    T flag;
+    __host__ __device__ vertex_filter(thrust::device_ptr<T> q, T f)
     {
         is_retained = q;
         flag = f;
@@ -144,7 +144,7 @@ __device__ void build_and_select_in_warp(int vertex, const weight_t *__restrict_
                                          int *com_size_update, int *Tot_update,
                                          int cur_com, edge_t start_neighbor, edge_t end_neighbor, int neighbor_num,
                                          int laneId, int warp_size,
-                                         int *active_set, int *is_moved, int *target_com_weights,
+                                         uint8_t *active_set, int *is_moved, int *target_com_weights,
                                          int iteration);
 
 __global__ void decide_and_move_shuffle(int *sorted_vertex_id, const weight_t *__restrict__ weights, const vertex_t *__restrict__ neighbors, const edge_t *__restrict__ degrees,
@@ -152,7 +152,7 @@ __global__ void decide_and_move_shuffle(int *sorted_vertex_id, const weight_t *_
                                         int *K, const int *__restrict__ Tot, int *In, int *next_In, int *Self,
                                         int *com_size, int *Tot_update, int *com_size_update,
                                         int vertex_num_to_proc, int warp_size, double constant,
-                                        int *active_set, int *is_moved, int *target_com_weights,
+                                        uint8_t *active_set, int *is_moved, int *target_com_weights,
                                         int iteration);
 
 __device__ void build_and_select(int vertex, const weight_t *__restrict__ weights, const vertex_t *__restrict__ neighbors, const edge_t *__restrict__ degrees,
@@ -162,14 +162,14 @@ __device__ void build_and_select(int vertex, const weight_t *__restrict__ weight
                                  int *neighbor_com_ids, int *neighbor_com_weights, int *shared_Tot,
                                  int cur_com, edge_t start_neighbor, edge_t end_neighbor, int neighbor_num,
                                  int laneId, int warp_size, int table_size, int is_global,
-                                 int *active_set, int *is_moved, int *target_com_weights);
+                                 uint8_t *active_set, int *is_moved, int *target_com_weights);
 
 __global__ void decide_and_move_hash_shared(int *sorted_vertex_id, const weight_t *__restrict__ weights, const vertex_t *__restrict__ neighbors, const edge_t *__restrict__ degrees,
                                             int *prev_community, int *cur_community,
                                             int *K, const int *__restrict__ Tot, int *In, int *next_In, int *Self,
                                             int *com_size, int *Tot_update, int *com_size_update,
                                             int vertex_num_to_proc, int table_size, int warp_size, double constant,
-                                            int *active_set, int *is_moved, int *target_com_weights, int iteration);
+                                            uint8_t *active_set, int *is_moved, int *target_com_weights, int iteration);
 
 __device__ void build_and_select_blk(int vertex, const weight_t *__restrict__ weights, const vertex_t *__restrict__ neighbors, const edge_t *__restrict__ degrees,
                                      int *In, int *next_In, const int *__restrict__ Tot, int *Self, int Ki, double constant,
@@ -179,7 +179,7 @@ __device__ void build_and_select_blk(int vertex, const weight_t *__restrict__ we
                                      int *global_neighbor_com_ids, int *global_neighbor_com_weights,
                                      int cur_com, edge_t start_neighbor, int neighbor_num,
                                      int threadIdInBlk, int threadNumInBlk, int warp_size, int shared_size, int global_size, int is_global,
-                                     int *active_set, int *is_moved, int *target_com_weights, int iteration);
+                                     uint8_t *active_set, int *is_moved, int *target_com_weights, int iteration);
 
 __global__ void decide_and_move_hash_hierarchical(int *sorted_vertex_id, const weight_t *__restrict__ weights, const vertex_t *__restrict__ neighbors, const edge_t *__restrict__ degrees,
                                                   int *prev_community, int *cur_community,
@@ -187,19 +187,19 @@ __global__ void decide_and_move_hash_hierarchical(int *sorted_vertex_id, const w
                                                   int *com_size, int *Tot_update, int *com_size_update,
                                                   int *global_table_ptr, int *glbTable, int *primes, int prime_num,
                                                   int vertex_num_to_proc, int warp_size, int global_limit, double constant,
-                                                  int *active_set, int *is_moved, int *target_com_weights, int iteration);
+                                                  uint8_t *active_set, int *is_moved, int *target_com_weights, int iteration);
 
 __global__ void compute_In(int *sorted_vertex_id, weight_t *weights, vertex_t *neighbors, edge_t *degrees,
                            int *cur_community,
                            int *K, int *Tot, int *In, int *Self,
                            int vertex_num_to_proc, int warp_size, double constant, int min_Tot,
-                           int *active_set);
+                           uint8_t *active_set);
 
 __global__ void compute_In_blk(int *sorted_vertex_id, weight_t *weights, vertex_t *neighbors, edge_t *degrees,
                                int *cur_community,
                                int *K, int *Tot, int *In, int *Self,
                                int vertex_num_to_proc, int warp_size, double constant, int min_Tot,
-                               int *active_set);
+                               uint8_t *active_set);
 
 //
 __global__ void renumber(int *renumber, vertex_t *out, int vertex_num);
@@ -256,5 +256,7 @@ __global__ void build_by_block(int *sorted_community_id, weight_t *weights, vert
 
 int print_time(timeval start, timeval end, int isPrint);
 
-__global__ void save_next_In(int *In, int *next_In, int *cur_community, int *active_set, int *is_moved, int *target_com_weights,
+__global__ void save_next_In(int *In, int *next_In, int *cur_community, uint8_t *active_set, int *is_moved, int *target_com_weights,
                              int *Tot, int *Self, int *K, edge_t min_Tot, double constant, int vertex_num);
+
+__global__ void get_Tot_and_comm_size(int *Tot, int *community_size, int *community, int *K, int vertex_num);

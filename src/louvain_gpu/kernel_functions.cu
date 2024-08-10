@@ -286,13 +286,26 @@ __device__ int find_neighbor_com_info(int *shared_neighbor_com_ids, int *shared_
     return -1;
 }
 
+
+__device__ void atomicOrUint8(uint8_t* address, uint8_t mask) {
+    unsigned int *base = (unsigned int *)((size_t)address & ~3);
+    unsigned int shift = ((size_t)address & 3) * 8;
+
+    unsigned int old, assumed;
+    old = *base;
+    do {
+        assumed = old;
+        old = atomicCAS(base, assumed, (assumed | (mask << shift)));
+    } while (assumed != old);
+}
+
 __device__ void build_and_select_in_warp(int vertex, const weight_t *__restrict__ weights, const vertex_t *__restrict__ neighbors, const edge_t *__restrict__ degrees,
                                          int *In, int *next_In, const int *__restrict__ Tot, int *Self, int Ki, double constant,
                                          int *prev_community, int *cur_community, int *com_size,
                                          int *com_size_update, int *Tot_update,
                                          int cur_com, edge_t start_neighbor, edge_t end_neighbor, int neighbor_num,
                                          int lane_id, int warp_size,
-                                         int *active_set, int *is_moved, int *target_com_weights,
+                                         uint8_t *active_set, int *is_moved, int *target_com_weights,
                                          int iteration)
 { // for each neighbor,compute gain
 
@@ -388,19 +401,19 @@ __device__ void build_and_select_in_warp(int vertex, const weight_t *__restrict_
 
             best_com = cur_com;
         }
-        else
-        {
+        // else
+        // {
 
-            if (lane_id == neighbor_num % warp_size)
-            {
-                // if(cur_community[vertex] != cur_com ) {
-                atomicAdd(&Tot_update[best_com], Ki);
-                atomicAdd(&com_size_update[best_com], 1);
-                atomicSub(&Tot_update[cur_com], Ki);
-                atomicSub(&com_size_update[cur_com], 1);
-                // }
-            }
-        }
+        //     if (lane_id == neighbor_num % warp_size)
+        //     {
+        //         // if(cur_community[vertex] != cur_com ) {
+        //         atomicAdd(&Tot_update[best_com], Ki);
+        //         atomicAdd(&com_size_update[best_com], 1);
+        //         atomicSub(&Tot_update[cur_com], Ki);
+        //         atomicSub(&com_size_update[cur_com], 1);
+        //         // }
+        //     }
+        // }
     }
     else
     {
@@ -425,7 +438,7 @@ __device__ void build_and_select_in_warp(int vertex, const weight_t *__restrict_
         {
             int v = neighbors[start_neighbor + thd];
             int wt = weights[start_neighbor + thd];
-            atomicOr(&active_set[v], 1); //
+            atomicOrUint8(&active_set[v], 1); //
             if (prev_community[v] == cur_com)
             {
                 atomicSub(&target_com_weights[v], wt);
@@ -446,7 +459,7 @@ __global__ void decide_and_move_shuffle(int *sorted_vertex_id, const weight_t *_
                                         int *K, const int *__restrict__ Tot, int *In, int *next_In, int *Self,
                                         int *com_size, int *Tot_update, int *com_size_update,
                                         int vertex_num_to_proc, int warp_size, double constant,
-                                        int *active_set, int *is_moved, int *target_com_weights,
+                                        uint8_t *active_set, int *is_moved, int *target_com_weights,
                                         int iteration)
 { // warp_size=threadAlloc
     int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
@@ -477,7 +490,7 @@ __device__ void build_and_select(int vertex, const weight_t *__restrict__ weight
                                  int *neighbor_com_ids, int *neighbor_com_weights, int *shared_Tot,
                                  int cur_com, edge_t start_neighbor, edge_t end_neighbor, int neighbor_num,
                                  int lane_id, int warp_size, int table_size, int is_global,
-                                 int *active_set, int *is_moved, int *target_com_weights)
+                                 uint8_t *active_set, int *is_moved, int *target_com_weights)
 { // for each neighbor,compute gain
 
     double maxdq = 0;
@@ -538,17 +551,17 @@ __device__ void build_and_select(int vertex, const weight_t *__restrict__ weight
 
             best_com = cur_com;
         }
-        else
-        {
+        // else
+        // {
 
-            if (lane_id == neighbor_num % warp_size)
-            {
-                atomicAdd(&Tot_update[best_com], Ki);
-                atomicAdd(&com_size_update[best_com], 1);
-                atomicSub(&Tot_update[cur_com], Ki);
-                atomicSub(&com_size_update[cur_com], 1);
-            }
-        }
+        //     if (lane_id == neighbor_num % warp_size)
+        //     {
+        //         atomicAdd(&Tot_update[best_com], Ki);
+        //         atomicAdd(&com_size_update[best_com], 1);
+        //         atomicSub(&Tot_update[cur_com], Ki);
+        //         atomicSub(&com_size_update[cur_com], 1);
+        //     }
+        // }
     }
     else
     {
@@ -576,7 +589,7 @@ __device__ void build_and_select(int vertex, const weight_t *__restrict__ weight
             int v = neighbors[start_neighbor + thd];
             int wt = weights[start_neighbor + thd];
             // if(prev_community[v]!=best_com){
-            atomicOr(&active_set[v], 1); //
+            atomicOrUint8(&active_set[v], 1); //
             if (prev_community[v] == cur_com)
             {
                 atomicSub(&target_com_weights[v], wt);
@@ -598,7 +611,7 @@ __global__ void decide_and_move_hash_shared(int *sorted_vertex_id, const weight_
                                             int *K, const int *__restrict__ Tot, int *In, int *next_In, int *Self,
                                             int *com_size, int *Tot_update, int *com_size_update,
                                             int vertex_num_to_proc, int table_size, int warp_size, double constant,
-                                            int *active_set, int *is_moved, int *target_com_weights, int iteration)
+                                            uint8_t *active_set, int *is_moved, int *target_com_weights, int iteration)
 {
     int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -645,7 +658,7 @@ __device__ void build_and_select_blk(int vertex, const weight_t *__restrict__ we
                                      int *global_neighbor_com_ids, int *global_neighbor_com_weights,
                                      int cur_com, edge_t start_neighbor, int neighbor_num,
                                      int thread_id_in_blk, int thread_numInBlk, int warp_size, int shared_size, int global_size, int is_global,
-                                     int *active_set, int *is_moved, int *target_com_weights, int iteration)
+                                     uint8_t *active_set, int *is_moved, int *target_com_weights, int iteration)
 { // for each neighbor,compute gain
     double maxdq = 0;
     int best_com = cur_com;
@@ -755,19 +768,19 @@ __device__ void build_and_select_blk(int vertex, const weight_t *__restrict__ we
         { //!!!!!!!!!!!!
             best_com = cur_com;
         }
-        else
-        {
+        // else
+        // {
 
-            if (thread_id_in_blk == neighbor_num % thread_numInBlk)
-            {
-                // if(cur_community[vertex] != cur_com ) {
-                atomicAdd(&Tot_update[best_com], Ki);
-                atomicAdd(&com_size_update[best_com], 1);
-                atomicSub(&Tot_update[cur_com], Ki);
-                atomicSub(&com_size_update[cur_com], 1);
-                // }
-            }
-        }
+        //     if (thread_id_in_blk == neighbor_num % thread_numInBlk)
+        //     {
+        //         // if(cur_community[vertex] != cur_com ) {
+        //         atomicAdd(&Tot_update[best_com], Ki);
+        //         atomicAdd(&com_size_update[best_com], 1);
+        //         atomicSub(&Tot_update[cur_com], Ki);
+        //         atomicSub(&com_size_update[cur_com], 1);
+        //         // }
+        //     }
+        // }
     }
     else
     {
@@ -797,7 +810,7 @@ __device__ void build_and_select_blk(int vertex, const weight_t *__restrict__ we
         {
             int v = neighbors[start_neighbor + thd];
             int wt = weights[start_neighbor + thd];
-            atomicOr(&active_set[v], 1); //
+            atomicOrUint8(&active_set[v], 1); //
             if (prev_community[v] == cur_com)
             {
                 atomicSub(&target_com_weights[v], wt);
@@ -818,7 +831,7 @@ __global__ void decide_and_move_hash_hierarchical(int *sorted_vertex_id, const w
                                                   int *com_size, int *Tot_update, int *com_size_update,
                                                   int *global_table_ptr, int *glbTable, int *primes, int prime_num,
                                                   int vertex_num_to_proc, int warp_size, int global_limit, double constant,
-                                                  int *active_set, int *is_moved, int *target_com_weights, int iteration)
+                                                  uint8_t *active_set, int *is_moved, int *target_com_weights, int iteration)
 { // warp_size=threadAlloc
 
     __shared__ int neighbor_com_info[SHARE_MEM_SIZE * 3];
@@ -891,7 +904,7 @@ __global__ void compute_In(int *sorted_vertex_id, weight_t *weights, vertex_t *n
                            int *cur_community,
                            int *K, int *Tot, int *In, int *Self,
                            int vertex_num_to_proc, int warp_size, double constant, int min_Tot,
-                           int *active_set)
+                           uint8_t *active_set)
 { // warp_size=threadAlloc
     int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -959,7 +972,7 @@ __global__ void compute_In_blk(int *sorted_vertex_id, weight_t *weights, vertex_
                                int *cur_community,
                                int *K, int *Tot, int *In, int *Self,
                                int vertex_num_to_proc, int warp_size, double constant, int min_Tot,
-                               int *active_set)
+                               uint8_t *active_set)
 { // warp_size=threadAlloc
 
     int block_id = blockIdx.x; // vertex_id
@@ -1032,51 +1045,6 @@ __global__ void compute_In_blk(int *sorted_vertex_id, weight_t *weights, vertex_
         }
     }
 }
-
-// get modularity
-// __host__ double modularity(int *weights, int *neighbors, int *degrees, int *community, int vertex_num, double constant /*,int* tmp_In,int* tmp_Q*/)
-// {
-//     int *Tot = new int[vertex_num]; // comunity-tot degree (N: 0-maxcommunity)
-//     int *In = new int[vertex_num];  // comunity-in degree (N: 0-maxcommunity)
-//     // int* Self=new int[vertex_num];
-//     for (int i = 0; i < vertex_num; i++)
-//     {
-//         In[i] = 0;
-//         Tot[i] = 0;
-//     }
-
-//     int m = 0; // number of edges
-
-//     for (int i = 0; i < vertex_num; i++)
-//     {
-//         int degree = 0;
-//         for (int j = (i == 0 ? 0 : degrees[i - 1]); j < degrees[i]; j++)
-//         {
-//             degree += weights[j];
-//             if (community[neighbors[j]] == community[i])
-//             {
-//                 In[i] += weights[j];
-//             }
-//         }
-
-//         Tot[community[i]] += degree;
-//     }
-
-//     double q = 0;
-//     for (int i = 0; i < vertex_num; i++)
-//     {
-
-//         q += (double)In[i] * constant - (double)((long)Tot[i]) * ((long)Tot[i]) * constant * constant;
-//     }
-
-//     // cout<<"In:";
-//     // for(int i=0;i<vertex_num;i++){
-//     //     if(In[i]!=tmp_In[i])
-//     //         cout<<i<<":"<<In[i]<<" "<<tmp_In[i]<<" "<<tmp_Q[i]<<endl;
-//     // }cout<<endl;
-
-//     return q;
-// }
 
 // build graph functions start
 
@@ -1706,7 +1674,7 @@ int print_time(timeval start, timeval end, int isPrint)
     return t;
 }
 
-__global__ void save_next_In(int *In, int *next_In, int *cur_community, int *active_set, int *is_moved, int *target_com_weights,
+__global__ void save_next_In(int *In, int *next_In, int *cur_community, uint8_t *active_set, int *is_moved, int *target_com_weights,
                              int *Tot, int *Self, int *K, edge_t min_Tot, double constant, int vertex_num)
 {
     int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
@@ -1737,7 +1705,7 @@ __global__ void save_next_In(int *In, int *next_In, int *cur_community, int *act
         // if(is_neighbors_moved==0&&is_self_moved==1){//save next In
         //     In[vertex]=next_In[vertex];
         // }
-        else if (is_neighbors_moved == 0 && is_self_moved >= 1)
+        else if (is_neighbors_moved == 0 && is_self_moved >= 1)//
         {
             int target_com_weight = next_In[vertex];
             int tot_target_com = Tot[cur_community[vertex]];
@@ -1776,5 +1744,16 @@ __global__ void save_next_In(int *In, int *next_In, int *cur_community, int *act
         {
             is_moved[vertex] = 1;
         }
+    }
+}
+
+__global__ void get_Tot_and_comm_size(int *Tot, int *community_size, int *community, int *K, int vertex_num)
+{
+    int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
+    if (thread_id < vertex_num){
+        int comm = community[thread_id];
+        int degree = K[thread_id];
+        atomicAdd(&Tot[comm], degree);
+        atomicAdd(&community_size[comm], 1);
     }
 }

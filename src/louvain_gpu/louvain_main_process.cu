@@ -9,7 +9,7 @@ void efficient_weight_updating(thrust::device_vector<weight_t> &d_weights,
 							   thrust::device_vector<edge_t> &d_degrees,
 							   thrust::device_vector<int> &cur_community,
 							   thrust::device_vector<int> &sorted_vertex_id,
-							   thrust::device_vector<int> &active_set,
+							   thrust::device_vector<uint8_t> &active_set,
 							   thrust::device_vector<int> &In,
 							   thrust::device_vector<int> &Tot,
 							   thrust::device_vector<int> &K,
@@ -196,7 +196,7 @@ void efficient_weight_updating(thrust::device_vector<weight_t> &d_weights,
 	}
 }
 
-void filter_vertex_into_new_vector(thrust::device_vector<int> &sorted_vertex_id_const, thrust::device_vector<int> &sorted_vertex_id, vertex_filter filter_, const int *deg_num_tbl_const, int *h_deg_num_tbl, int degree_type_size)
+void filter_vertex_into_new_vector(thrust::device_vector<int> &sorted_vertex_id_const, thrust::device_vector<int> &sorted_vertex_id, vertex_filter<int> filter_, const int *deg_num_tbl_const, int *h_deg_num_tbl, int degree_type_size)
 {
 	thrust::device_vector<int>::iterator const_start = sorted_vertex_id_const.begin();
 	thrust::device_vector<int>::iterator const_end = const_start;
@@ -213,6 +213,22 @@ void filter_vertex_into_new_vector(thrust::device_vector<int> &sorted_vertex_id_
 	}
 }
 
+void filter_vertex_into_new_vector(thrust::device_vector<int> &sorted_vertex_id_const, thrust::device_vector<int> &sorted_vertex_id, vertex_filter<uint8_t> filter_, const int *deg_num_tbl_const, int *h_deg_num_tbl, int degree_type_size)
+{
+	thrust::device_vector<int>::iterator const_start = sorted_vertex_id_const.begin();
+	thrust::device_vector<int>::iterator const_end = const_start;
+	thrust::device_vector<int>::iterator filter_start = sorted_vertex_id.begin();
+	thrust::device_vector<int>::iterator filter_end;
+	for (int i = 0; i < degree_type_size; i++)
+	{
+		const_end = const_start + deg_num_tbl_const[i];
+		filter_end = thrust::copy_if(const_start, const_end,
+									 filter_start, filter_);
+		h_deg_num_tbl[i] = thrust::distance(filter_start, filter_end);
+		const_start = const_end;
+		filter_start = filter_end;
+	}
+}
 
 void get_deg_num_per_gpu(int* deg_num_tbl_const,int* deg_num_per_gpu,int gpu_id,int gpu_num,int size){
 	int* temp=new int[size];
@@ -515,7 +531,7 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 	// thrust::device_vector<int> global_table(4 * global_table_offset.back(), 0); // global
 	// hash table return 1;
 
-	thrust::device_vector<int> active_set(vertex_num, 1); // active set
+	thrust::device_vector<uint8_t> active_set(vertex_num, 1); // active set
 	thrust::device_vector<int> is_moved(vertex_num, 0);	  // whether vertex has moved into new comm in the iteration
 
 	thrust::device_vector<int> sorted_vertex_id_const(
@@ -543,7 +559,7 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 					  sum.begin(), modularity_op(constant));
 	cur_modularity = thrust::reduce(thrust::device, sum.begin(), sum.end(),
 									(double)0.0, thrust::plus<double>());
-
+	
 	if(gpu_id==0)
 			printf("gpu-%d: Iteration:%d Q:%f\n",gpu_id, iteration, cur_modularity);
 
@@ -571,19 +587,18 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 	while (true)
 	{
 		
-		thrust::fill(active_set.begin(), active_set.end(), 1);
-		// thrust::fill(is_moved.begin(), is_moved.end(), 0);
-		thrust::fill(Tot_update.begin(), Tot_update.end(), 0);
+		thrust::fill(active_set.begin(), active_set.end(), 0);
+		thrust::fill(is_moved.begin(), is_moved.end(), 0);
+		// thrust::fill(Tot_update.begin(), Tot_update.end(), 0);
 		// thrust::fill(In.begin(),In.end(),0);
 		// thrust::replace_if(In.begin(),In.end(),stencil.begin(),[] __device__ (int x) { return x  == 1; },0);
 
-		thrust::fill(community_size_update.begin(), community_size_update.end(), 0);
-		// thrust::fill(target_com_weights.begin(), target_com_weights.end(), 0);
+		// thrust::fill(community_size_update.begin(), community_size_update.end(), 0);
+		thrust::fill(target_com_weights.begin(), target_com_weights.end(), 0);
 
 		thrust::replace_if(cur_community.begin(),cur_community.end(),stencil.begin(),[] __device__ (int x) { return x  == 1; },0);
-		// thrust::replace_if(cur_community.begin(),cur_community.end(),stencil.begin(),[] __device__ (int x) { return x  == 1; },0);
 		// thrust::fill(cur_community.begin(), cur_community.end(), 0);
-		// thrust::replace_if(next_In.begin(),next_In.end(),stencil.begin(),[] __device__ (int x) { return x  == 1; },0);
+		thrust::replace_if(next_In.begin(),next_In.end(),stencil.begin(),[] __device__ (int x) { return x  == 1; },0);
 		// thrust::fill(next_In.begin(), next_In.end(), 0);
 		
 
@@ -857,145 +872,96 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 		}
 
 		end1 = get_time();
-		// time[7]=end1-start1;
+	
 
 		decideandmovetime += end1 - start1;
-		// int* com=new int[vertex_num];
-		// cudaMemcpy(com,thrust::raw_pointer_cast(cur_community.data()),vertex_num*sizeof(int),cudaMemcpyDeviceToHost);
+		
 		
 		double start2, end2;
 		start2 = get_time();
-		// for(int i=0;i<vertex_num;i++){
-		// 	cout<<com[i]<<" ";
-		// }
-		// cout<<endl;
-
-		// thrust::copy(cur_community.begin(),cur_community.end(),sendbuff);
-		// thrust::copy(Tot_update.begin(),Tot_update.end(),sendbuff+vertex_num);
-		// thrust::copy(community_size_update.begin(),community_size_update.end(),sendbuff+vertex_num*2);
-		// thrust::copy(next_In.begin(),next_In.end(),sendbuff+vertex_num*3);
-		// thrust::copy(active_set.begin(),active_set.end(),sendbuff+vertex_num*4);
-		// thrust::copy(target_com_weights.begin(),target_com_weights.end(),sendbuff+vertex_num*5);
-		// thrust::copy(is_moved.begin(),is_moved.end(),sendbuff+vertex_num*6);
-		// thrust::copy(In.begin(),In.end(),sendbuff+vertex_num*7);
-
+	
 
 		double start_comm, end_comm;
 		start_comm = get_time();
-		// ncclAllReduce((const void*)sendbuff, (void*)sendbuff, vertex_num*8, ncclInt, /*ncclMax*/ ncclSum, comm,s);
-		// thrust::gather(sorted_vertex_id.begin(),sorted_vertex_id.end(),cur_community.begin(),
-		// sendbuffer.begin()+gpu_id*data_num_per_gpu_list_offset[1]);
-		// ncclAllGather((const void*)(thrust::raw_pointer_cast(sendbuffer.data())+gpu_id*data_num_per_gpu_list_offset[1]), 
-		// (void*) thrust::raw_pointer_cast(sendbuffer.data()), data_num_per_gpu_list_offset[1], ncclInt, comm, s);
+
 		
 		ncclAllReduce((const void*)thrust::raw_pointer_cast(cur_community.data()), (void*)thrust::raw_pointer_cast(cur_community.data()), vertex_num, ncclInt, /*ncclMax*/ ncclSum, comm,s);
-		
-		ncclAllReduce((const void*)thrust::raw_pointer_cast(Tot_update.data()), (void*)thrust::raw_pointer_cast(Tot_update.data()), vertex_num, ncclInt, /*ncclMax*/ ncclSum, comm,s);
-		ncclAllReduce((const void*)thrust::raw_pointer_cast(community_size_update.data()), (void*)thrust::raw_pointer_cast(community_size_update.data()), vertex_num, ncclInt, /*ncclMax*/ ncclSum, comm,s);
-		// ncclAllReduce((const void*)thrust::raw_pointer_cast(next_In.data()), (void*)thrust::raw_pointer_cast(next_In.data()), vertex_num, ncclInt, /*ncclMax*/ ncclSum, comm,s);
-		// ncclAllReduce((const void*)thrust::raw_pointer_cast(active_set.data()), (void*)thrust::raw_pointer_cast(active_set.data()), vertex_num, ncclInt, /*ncclMax*/ ncclSum, comm,s);
-		// ncclAllReduce((const void*)thrust::raw_pointer_cast(target_com_weights.data()), (void*)thrust::raw_pointer_cast(target_com_weights.data()), vertex_num, ncclInt, /*ncclMax*/ ncclSum, comm,s);
-		// ncclAllReduce((const void*)thrust::raw_pointer_cast(is_moved.data()), (void*)thrust::raw_pointer_cast(is_moved.data()), vertex_num, ncclInt, /*ncclMax*/ ncclSum, comm,s);
-		// ncclAllReduce((const void*)thrust::raw_pointer_cast(In.data()), (void*)thrust::raw_pointer_cast(In.data()), vertex_num, ncclInt, /*ncclMax*/ ncclSum, comm,s);
+		// ncclAllReduce((const void*)thrust::raw_pointer_cast(Tot_update.data()), (void*)thrust::raw_pointer_cast(Tot_update.data()), vertex_num, ncclInt, /*ncclMax*/ ncclSum, comm,s);//Dv(C)
+		// ncclAllReduce((const void*)thrust::raw_pointer_cast(community_size_update.data()), (void*)thrust::raw_pointer_cast(community_size_update.data()), vertex_num, ncclInt, /*ncclMax*/ ncclSum, comm,s);//vertex num
+		// ncclAllReduce((const void*)thrust::raw_pointer_cast(next_In.data()), (void*)thrust::raw_pointer_cast(next_In.data()), vertex_num, ncclInt, /*ncclMax*/ ncclSum, comm,s);//这一轮待保存的Dc(C)
+		ncclAllReduce((const void*)thrust::raw_pointer_cast(active_set.data()), (void*)thrust::raw_pointer_cast(active_set.data()), vertex_num, ncclUint8, /*ncclMax*/ ncclSum, comm,s);//标记邻居动的情况
+		ncclAllReduce((const void*)thrust::raw_pointer_cast(target_com_weights.data()), (void*)thrust::raw_pointer_cast(target_com_weights.data()), vertex_num, ncclInt, /*ncclMax*/ ncclSum, comm,s);//邻居移动对点												产生的delta
+		// ncclAllReduce((const void*)thrust::raw_pointer_cast(is_moved.data()), (void*)thrust::raw_pointer_cast(is_moved.data()), vertex_num, ncclInt, /*ncclMax*/ ncclSum, comm,s);//标记点自己是否移动
+		// ncclAllReduce((const void*)thrust::raw_pointer_cast(In.data()), (void*)thrust::raw_pointer_cast(In.data()), vertex_num, ncclInt, /*ncclMax*/ ncclSum, comm,s);//上一轮结束后，点到自己社区的权重和Dc(C)
 		
 		
 		cudaStreamSynchronize(s);
-		// cout<<gpu_id<<"-sorted_vertex_id:";
-		// for(int i=0;i<deg_num_4_per_gpu+deg_num_8_per_gpu+deg_num_16_per_gpu+deg_num_32_per_gpu+deg_num_128_per_gpu+deg_num_1024_per_gpu+deg_num_limit_per_gpu+deg_num_greater_than_limit_per_gpu;i++){
-		// 	cout<<sorted_vertex_id[i]<<" ";
-		// }
-		// cout<<endl;
-		// cout<<gpu_id<<"-curr_comm:";
-		// for(int i=0;i<vertex_num;i++){
-		// 	cout<<cur_community[i]<<" ";
-		// }
-		// cout<<endl;
-		// cout<<gpu_id<<"-sendbuffer:";
-		// for(int i=0;i<sendbuffer.size();i++){
-		// 	cout<<sendbuffer[i]<<" ";
-		// }
-		// cout<<endl;
+	
 
-		// for(int i=0;i<gpu_num;i++){
-		// 	thrust::scatter(sendbuffer.begin()+i*data_num_per_gpu_list_offset[1],sendbuffer.begin()+i*data_num_per_gpu_list_offset[1]+
-		// 			data_num_per_gpu_list_offset[i+1]-data_num_per_gpu_list_offset[i],
-		// 	sorted_vertex_id_gpu_distribute.begin()+data_num_per_gpu_list_offset[i],cur_community.begin());
-		// }
-
-		// cout<<gpu_id<<"-curr_comm_new:";
-		// for(int i=0;i<vertex_num;i++){
-		// 	cout<<cur_community[i]<<" ";
-		// }
-		// cout<<endl;
 		end_comm=get_time();
 		comm_time+=end_comm-start_comm;
-		// if(gpu_id==0){
-		// 	cout<<"gpu-"<<gpu_id<<" communication:";
-		// 	cout<<end_comm-start_comm<<endl;
-		// }
-		// thrust::copy(sendbuff,sendbuff+vertex_num,cur_community.begin());
-		// thrust::copy(sendbuff+vertex_num,sendbuff+vertex_num*2,Tot_update.begin());
-		// thrust::copy(sendbuff+vertex_num*2,sendbuff+vertex_num*3,community_size_update.begin());
-		// thrust::copy(sendbuff+vertex_num*3,sendbuff+vertex_num*4,next_In.begin());
-		// thrust::copy(sendbuff+vertex_num*4,sendbuff+vertex_num*5,active_set.begin());
-		// thrust::copy(sendbuff+vertex_num*5,sendbuff+vertex_num*6,target_com_weights.begin());
-		// thrust::copy(sendbuff+vertex_num*6,sendbuff+vertex_num*7,is_moved.begin());
-		// thrust::copy(sendbuff+vertex_num*7,sendbuff+vertex_num*8,In.begin());
-
-		// end2 = get_time();
-		// updatetime += end2 - start2;
-	
+		
+		
 		// compute In
-		thrust::transform(thrust::device, Tot.begin(), Tot.end(),
-						  Tot_update.begin(), Tot.begin(), thrust::plus<int>());
-		thrust::transform(thrust::device, community_size.begin(), community_size.end(),
-						  community_size_update.begin(), community_size.begin(),
-						  thrust::plus<int>());
-
+		// thrust::transform(thrust::device, Tot.begin(), Tot.end(),
+		// 				  Tot_update.begin(), Tot.begin(), thrust::plus<int>());
+		// thrust::transform(thrust::device, community_size.begin(), community_size.end(),
+		// 				  community_size_update.begin(), community_size.begin(),
+		// 				  thrust::plus<int>());
+		thrust::fill(Tot.begin(), Tot.end(),0);
+		thrust::fill(community_size.begin(), community_size.end(),0);
+		block_num = (vertex_num + 1024 - 1) / 1024;	
+		get_Tot_and_comm_size<<<block_num, 1024>>>(thrust::raw_pointer_cast(Tot.data()), thrust::raw_pointer_cast(community_size.data()), 
+		thrust::raw_pointer_cast(cur_community.data()), thrust::raw_pointer_cast(K.data()), vertex_num);
 		edge_t min_Tot = thrust::transform_reduce(Tot.begin(), Tot.end(), Tot_op(m2), m2,
 												  thrust::minimum<edge_t>());
 
 		// min_Tot=1;
-		// block_num = (vertex_num + 1024 - 1) / 1024;
-		// save_next_In<<<block_num, 1024>>>(
-		// 	thrust::raw_pointer_cast(In.data()),
-		// 	thrust::raw_pointer_cast(next_In.data()),
-		// 	thrust::raw_pointer_cast(cur_community.data()),
-		// 	thrust::raw_pointer_cast(active_set.data()),
-		// 	thrust::raw_pointer_cast(is_moved.data()),
-		// 	thrust::raw_pointer_cast(target_com_weights.data()),
-		// 	thrust::raw_pointer_cast(Tot.data()),
-		// 	thrust::raw_pointer_cast(Self.data()),
-		// 	thrust::raw_pointer_cast(K.data()), (int)min_Tot, constant,
-		// 	vertex_num);
-		// cudaDeviceSynchronize();
-		
+		// double start_test=get_time();
+		block_num = (vertex_num + 1024 - 1) / 1024;									
+		save_next_In<<<block_num, 1024>>>(
+			thrust::raw_pointer_cast(In.data()),
+			thrust::raw_pointer_cast(next_In.data()),
+			thrust::raw_pointer_cast(cur_community.data()),
+			thrust::raw_pointer_cast(active_set.data()),
+			thrust::raw_pointer_cast(is_moved.data()),
+			thrust::raw_pointer_cast(target_com_weights.data()),
+			thrust::raw_pointer_cast(Tot.data()),
+			thrust::raw_pointer_cast(Self.data()),
+			thrust::raw_pointer_cast(K.data()), (int)min_Tot, constant,
+			vertex_num);
+		cudaDeviceSynchronize();
+		// double end_test=get_time();
+		// test_time+=end_test-start_test;
 		int h_deg_num_tbl[degree_type_size];
-		// vertex_filter moved_filter = vertex_filter(is_moved.data(), 1); // vertices to compute In
-		// thrust::device_vector<int> compute_In_sorted_vertex_id(vertex_num);
-		// filter_vertex_into_new_vector(sorted_vertex_id_all, compute_In_sorted_vertex_id, moved_filter, deg_num_tbl_const, h_deg_num_tbl, degree_type_size);
+		vertex_filter<int> moved_filter(is_moved.data(), 1); // vertices to compute In , is_moved 标记邻居动且自身动的情况
+		thrust::device_vector<int> compute_In_sorted_vertex_id(vertex_num);
+		filter_vertex_into_new_vector(sorted_vertex_id_const, compute_In_sorted_vertex_id, moved_filter, deg_num_per_gpu, h_deg_num_tbl, degree_type_size);
 
 		efficient_weight_updating(d_weights, d_neighbors, d_degrees,
-								  cur_community, sorted_vertex_id_const,
+								  cur_community, compute_In_sorted_vertex_id,
 								  active_set, In, Tot, K, Self, vertex_num,
-								  deg_num_per_gpu, (int)min_Tot, constant);
+								  h_deg_num_tbl, (int)min_Tot, constant);
 		end2 = get_time();
 		updatetime += end2 - start2;
 
 		// ncclAllReduce((const void*)thrust::raw_pointer_cast(In.data()), (void*)thrust::raw_pointer_cast(In.data()), vertex_num, ncclInt, /*ncclMax*/ ncclSum, comm,s);
 		// cudaStreamSynchronize(s);
-		
+		// for(int i=0;i<vertex_num;i++){
+		// 	cout<<In[i]<<" ";
+		// }cout<<endl;
 
-		
+		thrust::replace_if(In.begin(),In.end(),stencil.begin(),[] __device__ (int x) { return x  == 1; },0);
 		double In_sum=thrust::reduce(thrust::device, In.begin(), In.end(),
 										(double)0.0, thrust::plus<double>());
 		MPI_Allreduce(&In_sum, &In_sum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
-		thrust::fill(In.begin(),In.end(),0);
+		
 		thrust::device_vector<double> sum(vertex_num, 0);
-		thrust::transform(thrust::device, In.begin(), In.end(), Tot.begin(),
+		thrust::device_vector<int> In_temp(vertex_num, 0);
+		thrust::transform(thrust::device, In_temp.begin(), In_temp.end(), Tot.begin(),
 						  sum.begin(), modularity_op(constant));
-		double cur_modularity = In_sum*constant+thrust::reduce(thrust::device, sum.begin(), sum.end(),
+		cur_modularity = In_sum*constant+thrust::reduce(thrust::device, sum.begin(), sum.end(),
 										(double)0.0, thrust::plus<double>());
 		
 
@@ -1006,7 +972,7 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 			break;
 		}
 		
-		vertex_filter active_filter = vertex_filter(active_set.data(), 1);
+		vertex_filter<uint8_t> active_filter(active_set.data(), 1);
 		filter_vertex_into_new_vector(sorted_vertex_id_const, sorted_vertex_id, active_filter, deg_num_per_gpu, h_deg_num_tbl, degree_type_size);
 		deg_num_4_per_gpu = h_deg_num_tbl[0];
 		deg_num_8_per_gpu = h_deg_num_tbl[1];
