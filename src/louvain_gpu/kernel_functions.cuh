@@ -86,6 +86,17 @@ struct modularity_op
     }
 };
 
+struct modularity_op_
+{
+    double constant;
+    __host__ __device__ modularity_op_(double c) : constant(c) {}
+
+    __host__ __device__ double operator()(const int &y)
+    {
+        return  -(double)((long)y * (long)y) * constant * constant;
+    }
+};
+
 struct same : std::binary_function<int, int, bool>
 {
     bool operator()(int a, int b) const { return a == b; }
