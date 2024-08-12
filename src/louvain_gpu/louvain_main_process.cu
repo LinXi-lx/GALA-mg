@@ -260,6 +260,19 @@ __global__ void get_cur_community(int *cur_community, int *id_buffer, int *commu
     }
 }
 
+__global__ void get_target_comm_weight(int *target_comm_weight, uint8_t* active_set, int *id_buffer, int *weight_buffer, int buffer_size)
+{
+    int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
+    if (thread_id < buffer_size){
+        int id=id_buffer[thread_id];
+		if(id>=0){
+			int w=weight_buffer[thread_id];
+			atomicAdd(&target_comm_weight[id], w);
+			active_set[id]=1;
+		}
+    }
+}
+
 // __global__ void prepare_stencil(int* stencil,int* sorted_)
 
 double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
@@ -483,7 +496,12 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 	int thread_num_to_alloc;
 
 	thrust::device_vector<int> target_com_weights(vertex_num, 0);
-	
+	thrust::device_vector<int> id_buffer(vertex_num, -1);
+	thrust::sequence(sorted_vertex_id_all.begin(), sorted_vertex_id_all.end());
+	thrust::device_vector<int> communitybuffer(vertex_num, 0);
+	thrust::device_vector<int> id_buffer_(vertex_num, -1);
+	thrust::device_vector<int> weight_buffer(vertex_num, 0);
+
 	ncclCommInitRank(&comm, gpu_num, id, gpu_id);
 	// int* In_sums;
     // cudaMalloc(&In_sums, sizeof(int)*gpu_num);
@@ -513,17 +531,7 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 	double remainingtime = 0;
 	double comm_time=0;
 	double test_time=0;
-	// cout<<gpu_id<<"sorted_vertex_id:";
-	// for(int i=0;i<deg_num_4_per_gpu+deg_num_8_per_gpu+deg_num_16_per_gpu+deg_num_32_per_gpu+deg_num_128_per_gpu+deg_num_1024_per_gpu+deg_num_limit_per_gpu+deg_num_greater_than_limit_per_gpu;i++){
-	// 	cout<<sorted_vertex_id[i]<<" ";
-	// }
-	// cout<<endl;
-	// cout<<gpu_id<<"stencil:";
-	// for(int i=0;i<vertex_num;i++){
-	// 	cout<<stencil[i]<<" ";
-	// }
-	// cout<<endl;
-	// thrust::device_vector<int> sendbuffer(gpu_num*data_num_per_gpu_list_offset[1]);
+
 	while (true)
 	{
 		
@@ -533,8 +541,6 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 		thrust::fill(target_com_weights.begin(), target_com_weights.end(), 0);
 
 		// thrust::replace_if(cur_community.begin(),cur_community.end(),stencil.begin(),[] __device__ (int x) { return x  == 1; },0);
-
-		
 
 		double start1, end1;
 		// double time[8];
@@ -818,9 +824,7 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 		double start_comm, end_comm;
 		start_comm = get_time();
 
-		thrust::device_vector<int> id_buffer(vertex_num, -1);
-		thrust::sequence(sorted_vertex_id_all.begin(), sorted_vertex_id_all.end());
-		thrust::device_vector<int> communitybuffer(vertex_num, 0);
+		thrust::fill(id_buffer.begin(),id_buffer.end(),-1);
 		thrust::device_vector<int>::iterator buffer_end = thrust::copy_if(cur_community.begin(), cur_community.end(), is_moved.begin(),
 																		communitybuffer.begin(), [] __device__ (int x) { return x  > 0; });
 		buffer_end = thrust::copy_if(sorted_vertex_id_all.begin(), sorted_vertex_id_all.end(), is_moved.begin(),
@@ -841,12 +845,43 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 		
 
 		// ncclAllReduce((const void*)thrust::raw_pointer_cast(cur_community.data()), (void*)thrust::raw_pointer_cast(cur_community.data()), vertex_num, ncclInt, /*ncclMax*/ ncclSum, comm,s);
-		ncclAllReduce((const void*)thrust::raw_pointer_cast(active_set.data()), (void*)thrust::raw_pointer_cast(active_set.data()), vertex_num, ncclUint8, /*ncclMax*/ ncclSum, comm,s);//标记邻居动的情况
+		if(iteration>100){
+			
+			thrust::fill(id_buffer_.begin(),id_buffer_.end(),-1);
+			// thrust::device_vector<int> active_set32(vertex_num);
+			// thrust::copy(active_set.begin(), active_set.end(), active_set32.begin());
+			thrust::device_vector<int>::iterator buffer_end_ = thrust::copy_if(target_com_weights.begin(), target_com_weights.end(), active_set.begin(),
+															weight_buffer.begin(), [] __device__ (uint8_t x) { return x  > 0; });
+			buffer_end_ = thrust::copy_if(sorted_vertex_id_all.begin(), sorted_vertex_id_all.end(), active_set.begin(),
+															id_buffer_.begin(), [] __device__ (uint8_t x) { return x  > 0; });
+			
+			int id_size_ = thrust::distance(id_buffer_.begin(), buffer_end_);//非0个数
+			int id_max_size_;
+			MPI_Allreduce(&id_size_, &id_max_size_, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+			// cout<<id_max_size<<endl;
+			thrust::device_vector<int> recvbuffer_id_(id_max_size_*gpu_num,-1);
+			thrust::device_vector<int> recvbuffer_weight_(id_max_size_*gpu_num);
+			ncclAllGather((const void*)thrust::raw_pointer_cast(id_buffer_.data()), (void*)thrust::raw_pointer_cast(recvbuffer_id_.data()), id_max_size_, ncclInt, comm,s);
+			ncclAllGather((const void*)thrust::raw_pointer_cast(weight_buffer.data()), (void*)thrust::raw_pointer_cast(recvbuffer_weight_.data()), id_max_size_, ncclInt, comm,s);
+			cudaStreamSynchronize(s);
+			thrust::fill(target_com_weights.begin(), target_com_weights.end(), 0);
+			block_num = (id_max_size_*gpu_num + 1024 - 1) / 1024;
+			get_target_comm_weight<<<block_num, 1024>>>(thrust::raw_pointer_cast(target_com_weights.data()), thrust::raw_pointer_cast(active_set.data()), thrust::raw_pointer_cast(recvbuffer_id_.data()), 
+			thrust::raw_pointer_cast(recvbuffer_weight_.data()), id_max_size_*gpu_num);
+		}
+		else{
+			ncclAllReduce((const void*)thrust::raw_pointer_cast(target_com_weights.data()), (void*)thrust::raw_pointer_cast(target_com_weights.data()), vertex_num, ncclInt, /*ncclMax*/ ncclSum, comm,s);//邻居移动对点产生的delta
+			ncclAllReduce((const void*)thrust::raw_pointer_cast(active_set.data()), (void*)thrust::raw_pointer_cast(active_set.data()), vertex_num, ncclUint8, /*ncclMax*/ ncclSum, comm,s);//标记邻居动的情况
+			cudaStreamSynchronize(s);
+		}
+		
+		// ncclAllReduce((const void*)thrust::raw_pointer_cast(target_com_weights.data()), (void*)thrust::raw_pointer_cast(target_com_weights.data()), vertex_num, ncclInt, /*ncclMax*/ ncclSum, comm,s);//邻居移动对点产生的delta
+		// ncclAllReduce((const void*)thrust::raw_pointer_cast(active_set.data()), (void*)thrust::raw_pointer_cast(active_set.data()), vertex_num, ncclUint8, /*ncclMax*/ ncclSum, comm,s);//标记邻居动的情况
 
-		ncclAllReduce((const void*)thrust::raw_pointer_cast(target_com_weights.data()), (void*)thrust::raw_pointer_cast(target_com_weights.data()), vertex_num, ncclInt, /*ncclMax*/ ncclSum, comm,s);//邻居移动对点产生的delta
 
 		
-		cudaStreamSynchronize(s);
+		// cudaStreamSynchronize(s);
+
 		// cout<<"buffer: ";
 		// for(int i=0;i<id_max_size*gpu_num;i++){
 		// 	cout<<recvbuffer_id[i]<<" ";
@@ -855,10 +890,12 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 		// for(int i=0;i<id_max_size*gpu_num;i++){
 		// 	cout<<recvbuffer_comm[i]<<" ";
 		// }cout<<endl;
+		
 		block_num = (id_max_size*gpu_num + 1024 - 1) / 1024;
 		get_cur_community<<<block_num, 1024>>>(thrust::raw_pointer_cast(cur_community.data()), thrust::raw_pointer_cast(recvbuffer_id.data()), 
 		thrust::raw_pointer_cast(recvbuffer_comm.data()), id_max_size*gpu_num);
-
+		
+		cudaDeviceSynchronize();
 		end_comm=get_time();
 		comm_time+=end_comm-start_comm;
 		
