@@ -1448,7 +1448,14 @@ __device__ void compute_neighbors_weights_list(int com, weight_t *weights, verte
         }
     }
 
-    int sum = __reduce_add_sync(0xffffffff, neighbor_num);
+    
+    for (int i = 1; i <= warp_size / 2; i *= 2)
+    {
+        int value = __shfl_up_sync(0xffffffff, neighbor_num, i, warp_size);
+        if (lane_id >= i)
+            neighbor_num += value;
+    }
+    int sum = neighbor_num;
     if (lane_id == 0)
     {
         new_degrees[com] = sum;

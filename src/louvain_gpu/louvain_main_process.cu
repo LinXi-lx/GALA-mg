@@ -4,6 +4,8 @@
 #include <thrust/iterator/counting_iterator.h>
 using namespace std;
 
+double threshold;
+
 void efficient_weight_updating(thrust::device_vector<weight_t> &d_weights,
 							   thrust::device_vector<vertex_t> &d_neighbors,
 							   thrust::device_vector<edge_t> &d_degrees,
@@ -826,7 +828,7 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 		
 		int id_max_size;
 		MPI_Allreduce(&id_size, &id_max_size, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
-		if(2 * id_max_size  < 0.8 * vertex_num){
+		if(2 * id_max_size  < threshold * vertex_num){
 		
 			thrust::fill(id_buffer.begin() + id_max_size * gpu_id, id_buffer.begin() + id_max_size * (gpu_id + 1), -1);
 			thrust::device_vector<int>::iterator buffer_end = thrust::copy_if(cur_community.begin(), cur_community.end(), is_moved.begin(),
@@ -852,7 +854,7 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 		int id_max_size_;
 		MPI_Allreduce(&id_size_, &id_max_size_, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
 		
-		if( 2*id_max_size_ < 0.8 * (1.25*vertex_num)){
+		if( 2*id_max_size_ < threshold * (1.25*vertex_num)){
 			
 			thrust::fill(id_buffer_.begin() + id_max_size_ * gpu_id + id_size_ ,id_buffer_.begin() + id_max_size_ * (gpu_id+1),-1);
 			thrust::device_vector<int>::iterator buffer_end_ = thrust::copy_if(target_com_weights.begin(), target_com_weights.end(), active_set.begin(),

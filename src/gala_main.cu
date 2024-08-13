@@ -5,6 +5,7 @@
 #include "louvain_gpu/louvain.cuh"
 using namespace std;
 
+
 int main(int argc, char **argv)
 {   
     MPI_Init(&argc, &argv);//本行之后便进入多线程状态，线程数由 mpirun -np 4 ./a.out 的这个4来指定
@@ -15,8 +16,9 @@ int main(int argc, char **argv)
     cout<<gpu_num<<endl;
     string file_name;
     int is_weighted = 0;
-    static const char *opt_string = "f:w";
+    static const char *opt_string = "t:f:w";
     int opt = getopt(argc, argv, opt_string);
+    extern double threshold;
     while (opt != -1)
     {
         switch (opt)
@@ -26,6 +28,9 @@ int main(int argc, char **argv)
             break;
         case 'w':
             is_weighted = true;
+            break;
+        case 't':
+            threshold = stod(optarg);
             break;
         }
         opt = getopt(argc, argv, opt_string);
