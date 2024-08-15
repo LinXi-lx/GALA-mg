@@ -899,7 +899,7 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 		
 		// compute In
 		
-		
+		double start_test=get_time();
 		thrust::fill(Tot.begin(), Tot.end(),0);
 		thrust::fill(community_size.begin(), community_size.end(),0);
 		block_num = (vertex_num + 1024 - 1) / 1024;	
@@ -908,6 +908,8 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 		edge_t min_Tot = thrust::transform_reduce(Tot.begin(), Tot.end(), Tot_op(m2), m2,
 												  thrust::minimum<edge_t>());
 		cudaDeviceSynchronize();
+		double end_test=get_time();
+		test_time+=end_test-start_test;
 		end_comm=get_time();
 		comm_time+=end_comm-start_comm;
 	
@@ -931,7 +933,7 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 		// min_Tot=1;
 		double start2, end2;
 		start2 = get_time();
-		double start_test=get_time();
+
 		block_num = (vertex_num + 1024 - 1) / 1024;							
 		save_next_In<<<block_num, 1024>>>(
 			thrust::raw_pointer_cast(In.data()),
@@ -945,8 +947,7 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 			thrust::raw_pointer_cast(K.data()),thrust::raw_pointer_cast(stencil.data()), (int)min_Tot, constant,
 			vertex_num);
 		cudaDeviceSynchronize();
-		double end_test=get_time();
-		test_time+=end_test-start_test;
+
 
 		int h_deg_num_tbl[degree_type_size];
 		vertex_filter<int> moved_filter(is_moved.data(), 1); // vertices to compute In , is_moved 标记邻居动且自身动的情况
