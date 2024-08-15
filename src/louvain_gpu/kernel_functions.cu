@@ -1692,74 +1692,8 @@ int print_time(timeval start, timeval end, int isPrint)
     return t;
 }
 
-__global__ void save_next_In(int *In, int *next_In, int *cur_community, uint8_t *active_set, int *is_moved, int *target_com_weights,
-                             int *Tot, int *Self, int *K,int *stencil, edge_t min_Tot, double constant, int vertex_num)
-{
-    int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
-    if (thread_id < vertex_num)
-    {
-
-        int vertex = thread_id;
-        int Ki = K[thread_id];
-        int is_neighbors_moved = active_set[vertex];
-        int is_self_moved = is_moved[vertex];
-        if (is_neighbors_moved >= 1 && is_self_moved == 0)
-        { // prune further
-            // if(is_recompute == 0){
-                int target_com_weight = target_com_weights[vertex] + In[vertex];
-                int tot_target_com = Tot[cur_community[vertex]];
-                if (2 * (target_com_weight - Self[vertex]) - (Ki - Self[vertex]) + (double)(min_Tot - (tot_target_com - Ki)) * constant * Ki > 0)
-                {
-                    active_set[vertex] = 0;
-
-                }
-                In[vertex] = target_com_weight;
-                is_moved[vertex] = 0;
-            // }
-            // else{
-            //     is_moved[vertex] = 1;
-            // }
-
-        }
-        else if (is_neighbors_moved == 0 && is_self_moved >= 1)//
-        {
-            int target_com_weight = next_In[vertex];
-            int tot_target_com = Tot[cur_community[vertex]];
-            if (2 * (target_com_weight - Self[vertex]) - (Ki - Self[vertex]) + (double)(min_Tot - (tot_target_com - Ki)) * constant * Ki <= 0)
-            {
-                active_set[vertex] = 1;
-
-            }
-            In[vertex] = target_com_weight;
-            is_moved[vertex] = 0;
-
-        }
-        else if (is_neighbors_moved == 0 && is_self_moved == 0)
-        {
-            int target_com_weight = In[vertex];
-            int tot_target_com = Tot[cur_community[vertex]];
-            if (2 * (target_com_weight - Self[vertex]) - (Ki - Self[vertex]) + (double)(min_Tot - (tot_target_com - Ki)) * constant * Ki <= 0)
-            {
-                active_set[vertex] = 1;
-            }
-
-            is_moved[vertex] = 0;
-
-        }
-        else if (is_neighbors_moved >= 1 && is_self_moved >= 1)
-        {
-            is_moved[vertex] = 1;
-
-        }
-        if(stencil[vertex] == 1){
-            In[vertex] = 0;
-        }
-    }
-}
-
-
 // __global__ void save_next_In(int *In, int *next_In, int *cur_community, uint8_t *active_set, int *is_moved, int *target_com_weights,
-//                              int *Tot, int *Self, int *K,int *stencil, edge_t min_Tot, double constant, int vertex_num, int iteration)
+//                              int *Tot, int *Self, int *K,int *stencil, edge_t min_Tot, double constant, int vertex_num)
 // {
 //     int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
 //     if (thread_id < vertex_num)
@@ -1769,17 +1703,91 @@ __global__ void save_next_In(int *In, int *next_In, int *cur_community, uint8_t 
 //         int Ki = K[thread_id];
 //         int is_neighbors_moved = active_set[vertex];
 //         int is_self_moved = is_moved[vertex];
+//         if (is_neighbors_moved >= 1 && is_self_moved == 0)
+//         { // prune further
+//             // if(is_recompute == 0){
+//                 int target_com_weight = target_com_weights[vertex] + In[vertex];
+//                 int tot_target_com = Tot[cur_community[vertex]];
+//                 if (2 * (target_com_weight - Self[vertex]) - (Ki - Self[vertex]) + (double)(min_Tot - (tot_target_com - Ki)) * constant * Ki > 0)
+//                 {
+//                     active_set[vertex] = 0;
 
-//         is_moved[vertex] = (is_neighbors_moved >= 1 && is_self_moved >= 1) * 1;//是否要计算In
+//                 }
+//                 In[vertex] = target_com_weight;
+//                 is_moved[vertex] = 0;
+//             // }
+//             // else{
+//             //     is_moved[vertex] = 1;
+//             // }
 
-//         int target_com_weight = (is_neighbors_moved >= 1 && is_self_moved == 0)*(target_com_weights[vertex] + In[vertex]) + 
-//                                 (is_neighbors_moved == 0 && is_self_moved >= 1) * next_In[vertex] + 
-//                                 (is_neighbors_moved == 0 && is_self_moved == 0) * In[vertex];
-//         int tot_target_com = Tot[cur_community[vertex]];
-//         active_set[vertex] = (2 * (target_com_weight - Self[vertex]) - (Ki - Self[vertex]) + (double)(min_Tot - (tot_target_com - Ki)) * constant * Ki <= 0) * 1 ;
-//         In[vertex] = (stencil[vertex] != 1) * target_com_weight;
+//         }
+//         else if (is_neighbors_moved == 0 && is_self_moved >= 1)//
+//         {
+//             int target_com_weight = next_In[vertex];
+//             int tot_target_com = Tot[cur_community[vertex]];
+//             if (2 * (target_com_weight - Self[vertex]) - (Ki - Self[vertex]) + (double)(min_Tot - (tot_target_com - Ki)) * constant * Ki <= 0)
+//             {
+//                 active_set[vertex] = 1;
+
+//             }
+//             In[vertex] = target_com_weight;
+//             is_moved[vertex] = 0;
+
+//         }
+//         else if (is_neighbors_moved == 0 && is_self_moved == 0)
+//         {
+//             int target_com_weight = In[vertex];
+//             int tot_target_com = Tot[cur_community[vertex]];
+//             if (2 * (target_com_weight - Self[vertex]) - (Ki - Self[vertex]) + (double)(min_Tot - (tot_target_com - Ki)) * constant * Ki <= 0)
+//             {
+//                 active_set[vertex] = 1;
+//             }
+
+//             is_moved[vertex] = 0;
+
+//         }
+//         else if (is_neighbors_moved >= 1 && is_self_moved >= 1)
+//         {
+//             is_moved[vertex] = 1;
+
+//         }
+//         if(stencil[vertex] == 1){
+//             In[vertex] = 0;
+//         }
 //     }
 // }
+
+
+__global__ void save_next_In(int *In, int *next_In, int *cur_community, uint8_t *active_set, int *is_moved, int *target_com_weights,
+                             int *Tot, int *Self, int *K,int *stencil, edge_t min_Tot, double constant, int vertex_num)
+{
+    int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
+    if (thread_id < vertex_num)
+    {
+
+        int vertex = thread_id;
+        int Ki = K[thread_id];
+        int is_neighbors_moved = active_set[vertex]>=1?1:0;
+        int is_self_moved = is_moved[vertex]>=1?1:0;
+        int flag = (is_neighbors_moved << 1) | is_self_moved; 
+        int target_com_weight;
+        switch(flag){
+            case 0:target_com_weight = In[vertex];break;
+            case 1:target_com_weight = next_In[vertex];break;
+            case 2:target_com_weight = (target_com_weights[vertex] + In[vertex]);break;
+            case 3:target_com_weight = 0;break;
+        }
+        is_moved[vertex] = (is_neighbors_moved == 1 && is_self_moved == 1) * 1;//是否要计算In
+
+        
+        // int target_com_weight = (is_neighbors_moved >= 1 && is_self_moved == 0)*(target_com_weights[vertex] + In[vertex]) + 
+        //                         (is_neighbors_moved == 0 && is_self_moved >= 1) * next_In[vertex] + 
+        //                         (is_neighbors_moved == 0 && is_self_moved == 0) * In[vertex];
+        int tot_target_com = Tot[cur_community[vertex]];
+        active_set[vertex] = (2 * (target_com_weight - Self[vertex]) - (Ki - Self[vertex]) + (double)(min_Tot - (tot_target_com - Ki)) * constant * Ki <= 0) * 1 ;
+        In[vertex] = (stencil[vertex] != 1) * target_com_weight;
+    }
+}
 
 
 __global__ void get_Tot_and_comm_size(int *Tot, int *community_size, int *community, int *K, int vertex_num)

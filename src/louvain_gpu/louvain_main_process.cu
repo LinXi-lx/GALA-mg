@@ -505,7 +505,12 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 	thrust::device_vector<int> communitybuffer(buffer_size_per_gpu*gpu_num, 0);
 	thrust::device_vector<int> id_buffer_(vertex_num*gpu_num, -1);
 	thrust::device_vector<int> weight_buffer(vertex_num*gpu_num, 0);
-
+	
+	// thrust::device_vector<int> count(vertex_num,1);
+	// thrust::device_vector<int> keys(vertex_num);
+	// thrust::device_vector<int> values(vertex_num);
+	// thrust::device_vector<int> cur_community_(vertex_num);
+	// thrust::device_vector<int> K_(vertex_num);
 	ncclCommInitRank(&comm, gpu_num, id, gpu_id);
 
 	double start, end;
@@ -546,7 +551,6 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 		double start1, end1;
 		// double time[8];
 		start1 = get_time();
-
 		if (deg_num_4_per_gpu)
 		{
 			thread_num_to_alloc = 4;
@@ -743,6 +747,7 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 		// end1=get_time();
 		// time[5]=end1-start1;
 		// start1=get_time();
+		
 		if (deg_num_limit_per_gpu)
 		{ // 1025-2703
 			warp_size = 32;
@@ -778,6 +783,8 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 		// end1=get_time();
 		// time[6]=end1-start1;
 		// start1=get_time();
+		
+		end1 = get_time();
 		if (deg_num_greater_than_limit_per_gpu)
 		{ // 2704-
 			warp_size = 32;
@@ -811,23 +818,25 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 				thrust::raw_pointer_cast(target_com_weights.data()), iteration);
 			cudaDeviceSynchronize();
 		}
-
-		end1 = get_time();
+		
+		
 	
 
 		decideandmovetime += end1 - start1;
 		
 		
-		double start2, end2;
-		start2 = get_time();
+		
 	
 
 		double start_comm, end_comm;
 		start_comm = get_time();
+
+		
 		int id_size = thrust::count_if(is_moved.begin(), is_moved.end(),[] __device__ (int x) { return x  > 0; });
 		
 		int id_max_size;
 		MPI_Allreduce(&id_size, &id_max_size, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+		
 		if(2 * id_max_size  < threshold * vertex_num){
 		
 			thrust::fill(id_buffer.begin() + id_max_size * gpu_id, id_buffer.begin() + id_max_size * (gpu_id + 1), -1);
@@ -844,12 +853,13 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 			get_cur_community<<<block_num, 1024,0, s>>>(thrust::raw_pointer_cast(cur_community.data()), thrust::raw_pointer_cast(id_buffer.data()), 
 			thrust::raw_pointer_cast(communitybuffer.data()), id_max_size*gpu_num);
 		}else{
+		
 			thrust::replace_if(cur_community.begin(),cur_community.end(),stencil.begin(),[] __device__ (int x) { return x  == 1; },0);
 			ncclAllReduce((const void*)thrust::raw_pointer_cast(cur_community.data()), (void*)thrust::raw_pointer_cast(cur_community.data()), vertex_num, ncclInt, /*ncclMax*/ ncclSum, comm,s);
 		}
-
+			
 		//recompute or communication
-
+		
 		int id_size_ = thrust::count_if(active_set.begin(), active_set.end(),[] __device__ (int x) { return x  > 0; });
 		int id_max_size_;
 		MPI_Allreduce(&id_size_, &id_max_size_, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
@@ -882,13 +892,14 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 		
 		cudaStreamSynchronize(s);
 		cudaStreamSynchronize(s_);
+		
 		// cudaDeviceSynchronize();
-		end_comm=get_time();
-		comm_time+=end_comm-start_comm;
+		
 		
 		
 		// compute In
-
+		
+		
 		thrust::fill(Tot.begin(), Tot.end(),0);
 		thrust::fill(community_size.begin(), community_size.end(),0);
 		block_num = (vertex_num + 1024 - 1) / 1024;	
@@ -897,9 +908,31 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 		edge_t min_Tot = thrust::transform_reduce(Tot.begin(), Tot.end(), Tot_op(m2), m2,
 												  thrust::minimum<edge_t>());
 		cudaDeviceSynchronize();
-		// min_Tot=1;
+		end_comm=get_time();
+		comm_time+=end_comm-start_comm;
+	
 
-		block_num = (vertex_num + 1024 - 1) / 1024;									
+		// thrust::fill(Tot.begin(), Tot.end(),0);
+		// thrust::fill(community_size.begin(), community_size.end(),0);
+		// thrust::copy(cur_community.begin(),cur_community.end(),cur_community_.begin());
+		// thrust::copy(K.begin(),K.end(),K_.begin());
+		// thrust::sort_by_key(cur_community_.begin(), cur_community_.end(), K_.begin());
+		// thrust::pair<thrust::device_vector<int>::iterator,thrust::device_vector<int>::iterator> new_end;
+		// new_end = thrust::reduce_by_key(cur_community_.begin(),cur_community_.end(),count.begin(),keys.begin(),values.begin());
+		
+		// thrust::scatter(values.begin(), new_end.second, keys.begin(), community_size.begin());
+		
+		// thrust::pair<thrust::device_vector<int>::iterator,thrust::device_vector<int>::iterator> new_end_ = 
+		// 	thrust::reduce_by_key(cur_community_.begin(),cur_community_.end(),K_.begin(),keys.begin(),values.begin());
+
+		// thrust::scatter(values.begin(), new_end_.second, keys.begin(), Tot.begin());
+		// edge_t min_Tot = thrust::transform_reduce(Tot.begin(), Tot.end(), Tot_op(m2), m2,
+		// 										  thrust::minimum<edge_t>());
+		// min_Tot=1;
+		double start2, end2;
+		start2 = get_time();
+		double start_test=get_time();
+		block_num = (vertex_num + 1024 - 1) / 1024;							
 		save_next_In<<<block_num, 1024>>>(
 			thrust::raw_pointer_cast(In.data()),
 			thrust::raw_pointer_cast(next_In.data()),
@@ -912,16 +945,19 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 			thrust::raw_pointer_cast(K.data()),thrust::raw_pointer_cast(stencil.data()), (int)min_Tot, constant,
 			vertex_num);
 		cudaDeviceSynchronize();
-		
+		double end_test=get_time();
+		test_time+=end_test-start_test;
+
 		int h_deg_num_tbl[degree_type_size];
 		vertex_filter<int> moved_filter(is_moved.data(), 1); // vertices to compute In , is_moved 标记邻居动且自身动的情况
 		
 		filter_vertex_into_new_vector(sorted_vertex_id_const, compute_In_sorted_vertex_id, moved_filter, deg_num_per_gpu, h_deg_num_tbl, degree_type_size);
-
+		
 		efficient_weight_updating(d_weights, d_neighbors, d_degrees,
 								  cur_community, compute_In_sorted_vertex_id,
 								  active_set, In, Tot, K, Self, vertex_num,
 								  h_deg_num_tbl, (int)min_Tot, constant);
+			
 		end2 = get_time();
 		updatetime += end2 - start2;
 
@@ -932,27 +968,24 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 		// }cout<<endl;
 
 		// thrust::replace_if(In.begin(),In.end(),stencil.begin(),[] __device__ (int x) { return x  == 1; },0);
-
+	
 		double In_sum=thrust::reduce(thrust::device, In.begin(), In.end(),
 		                (double)0.0, thrust::plus<double>());
-		// double start_test=get_time();
+		
 		MPI_Allreduce(&In_sum, &In_sum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-		// double end_test=get_time();
-		// test_time+=end_test-start_test;
+		
 		
 		thrust::transform(thrust::device, Tot.begin(), Tot.end(), 
 						  sum.begin(), modularity_op_(constant));
 		cur_modularity = In_sum * constant + thrust::reduce(thrust::device, sum.begin(), sum.end(),
 										(double)0.0, thrust::plus<double>());
 		
-
 		if(gpu_id==0)
 			printf("gpu-%d: Iteration:%d Q:%f\n",gpu_id, iteration, cur_modularity);
 		if ((cur_modularity - prev_modularity) < min_modularity)
 		{ // threshold
 			break;
 		}
-		
 		vertex_filter<uint8_t> active_filter(active_set.data(), 1);
 		filter_vertex_into_new_vector(sorted_vertex_id_const, sorted_vertex_id, active_filter, deg_num_per_gpu, h_deg_num_tbl, degree_type_size);
 		deg_num_4_per_gpu = h_deg_num_tbl[0];
@@ -970,13 +1003,15 @@ double louvain_main_process(thrust::device_vector<weight_t> &d_weights,
 		// }
 		// cout<<endl;
 		
+		
 		prev_modularity = cur_modularity;
 
 		// thrust::device_ptr<int> temp=prev_community.begin();
 		prev_community = cur_community; // Current holds the chosen assignment
-		// thrust::swap(prev_community,cur_community);
+		// thrust::swap(prev_community, cur_community);
 		iteration++;
 		
+
 		// return 1;
 	}
 
